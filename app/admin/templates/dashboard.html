@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>nenastupi admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .ok { color: green; }
+    .fail { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Admin</h1>
+
+  <p>???????? ? ??: <strong>{{ company_count }}</strong></p>
+  <p>?????? Telegram: <strong>{{ session_count }}</strong></p>
+
+  <h2>??????????????</h2>
+  <ul>
+    <li>PostgreSQL: <span class="{{ 'ok' if infra.postgres == 'ok' else 'fail' }}">{{ infra.postgres }}</span></li>
+    <li>Redis: <span class="{{ 'ok' if infra.redis == 'ok' else 'fail' }}">{{ infra.redis }}</span></li>
+    <li>Neo4j: <span class="{{ 'ok' if infra.neo4j == 'ok' else 'fail' }}">{{ infra.neo4j }}</span></li>
+    <li>Celery queue length: <strong>{{ infra.celery_queue }}</strong></li>
+  </ul>
+
+  <h2>????????? ????????</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>?????</th>
+        <th>??????</th>
+        <th>????</th>
+        <th>?????</th>
+        <th>?????</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in last_checks %}
+      <tr>
+        <td>{{ c.requested_at }}</td>
+        <td>{{ c.query }}</td>
+        <td>{{ c.ogrn or '-' }}</td>
+        <td>{{ c.channel }}</td>
+        <td>{{ 'yes' if c.success else 'no' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>?????????? ???????</h2>
+  <form method="post" action="/admin/restart">
+    <input type="password" name="secret" placeholder="RESTART_SECRET" />
+    <button type="submit">Restart API</button>
+  </form>
+</body>
+</html>
