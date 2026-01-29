@@ -50,3 +50,26 @@ class TelegramSession(Base):
     last_result_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ApiLog(Base):
+    __tablename__ = "api_logs"
+
+    id = Column(Integer, primary_key=True)
+    source = Column(String(50), nullable=False)
+    level = Column(String(20), nullable=False, default="error")
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SessionLog(Base):
+    __tablename__ = "session_logs"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, nullable=True)
+    telegram_chat_id = Column(String(50), nullable=True)
+    telegram_tag = Column(String(100), nullable=True)
+    step = Column(String(100), nullable=False)
+    message = Column(Text, nullable=False)
+    payload = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

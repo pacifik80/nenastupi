@@ -15,45 +15,132 @@
 <body>
   <h1>Admin</h1>
 
-  <p>Компаний в БД: <strong>{{ company_count }}</strong></p>
-  <p>Сессий Telegram: <strong>{{ session_count }}</strong></p>
+  <div style="display:flex; gap:12px; margin: 12px 0 24px;">
+    <a href="/admin?tab=status" class="pill" style="text-decoration:none;">Статус</a>
+    <a href="/admin?tab=sessions" class="pill" style="text-decoration:none;">Сессии</a>
+  </div>
 
-  <h2>Инфраструктура</h2>
-  <ul>
-    <li>PostgreSQL: <span class="{{ 'ok' if infra.postgres == 'ok' else 'fail' }}">{{ infra.postgres }}</span></li>
-    <li>Redis: <span class="{{ 'ok' if infra.redis == 'ok' else 'fail' }}">{{ infra.redis }}</span></li>
-    <li>Neo4j: <span class="{{ 'ok' if infra.neo4j == 'ok' else 'fail' }}">{{ infra.neo4j }}</span></li>
-    <li>Celery queue length: <strong>{{ infra.celery_queue }}</strong></li>
-  </ul>
+  {% if tab == 'status' %}
+    <p>Компаний в БД: <strong>{{ company_count }}</strong></p>
+    <p>Сессий Telegram: <strong>{{ session_count }}</strong></p>
 
-  <h2>Последние проверки</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Время</th>
-        <th>Запрос</th>
-        <th>ОГРН</th>
-        <th>Канал</th>
-        <th>Успех</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in last_checks %}
-      <tr>
-        <td>{{ c.requested_at }}</td>
-        <td>{{ c.query }}</td>
-        <td>{{ c.ogrn or '-' }}</td>
-        <td>{{ c.channel }}</td>
-        <td>{{ 'yes' if c.success else 'no' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <h2>Инфраструктура</h2>
+    <ul>
+      <li>PostgreSQL: <span class="{{ 'ok' if infra.postgres == 'ok' else 'fail' }}">{{ infra.postgres }}</span></li>
+      <li>Redis: <span class="{{ 'ok' if infra.redis == 'ok' else 'fail' }}">{{ infra.redis }}</span></li>
+      <li>Neo4j: <span class="{{ 'ok' if infra.neo4j == 'ok' else 'fail' }}">{{ infra.neo4j }}</span></li>
+      <li>Celery queue length: <strong>{{ infra.celery_queue }}</strong></li>
+    </ul>
 
-  <h2>Перезапуск сервиса</h2>
-  <form method="post" action="/admin/restart">
-    <input type="password" name="secret" placeholder="RESTART_SECRET" />
-    <button type="submit">Restart API</button>
-  </form>
+    <h2>Последние проверки</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Запрос</th>
+          <th>ОГРН</th>
+          <th>Канал</th>
+          <th>Успех</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in last_checks %}
+        <tr>
+          <td>{{ c.requested_at }}</td>
+          <td>{{ c.query }}</td>
+          <td>{{ c.ogrn or '-' }}</td>
+          <td>{{ c.channel }}</td>
+          <td>{{ 'yes' if c.success else 'no' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Перезапуск сервиса</h2>
+    <form method="post" action="/admin/restart">
+      <input type="password" name="secret" placeholder="RESTART_SECRET" />
+      <button type="submit">Restart API</button>
+    </form>
+
+    <h2>Логи API (ошибки)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Источник</th>
+          <th>Сообщение</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in last_logs %}
+        <tr>
+          <td>{{ l.created_at }}</td>
+          <td>{{ l.source }}</td>
+          <td>{{ l.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <h2>Сессии</h2>
+    <form method="get" action="/admin" style="display:flex; gap:12px; margin-bottom:16px;">
+      <input type="hidden" name="tab" value="sessions" />
+      <input name="session_id" placeholder="Session ID" value="{{ filter_session_id }}" />
+      <input name="telegram_tag" placeholder="Telegram tag" value="{{ filter_telegram_tag }}" />
+      <button type="submit">Фильтр</button>
+    </form>
+
+    <h3>Последние сессии</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Время</th>
+          <th>Запрос</th>
+          <th>Канал</th>
+          <th>Telegram</th>
+          <th>Успех</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td>{{ s.id }}</td>
+          <td>{{ s.requested_at }}</td>
+          <td>{{ s.query }}</td>
+          <td>{{ s.channel }}</td>
+          <td>{{ s.telegram_chat_id or '-' }}</td>
+          <td>{{ 'yes' if s.success else 'no' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>Логи сессии</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Session ID</th>
+          <th>Telegram</th>
+          <th>Шаг</th>
+          <th>Сообщение</th>
+          <th>Payload</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in session_logs %}
+        <tr>
+          <td>{{ l.created_at }}</td>
+          <td>{{ l.session_id or '-' }}</td>
+          <td>{{ l.telegram_tag or '-' }}</td>
+          <td>{{ l.step }}</td>
+          <td>{{ l.message }}</td>
+          <td><pre style="white-space:pre-wrap; max-width:520px;">{{ l.payload }}</pre></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
 </body>
 </html>

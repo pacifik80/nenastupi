@@ -6,6 +6,8 @@ from typing import Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.services.cache import get_cached, set_cached
+from app.services.logging import log_api_error
+from app.services.session_log import log_session_event
 from app.services.sources.efrsb import EfrsbClient
 from app.services.sources.fns import FnsClient
 from app.services.sources.hh import HhClient
@@ -22,6 +24,16 @@ SOURCE_WEIGHTS = {
     "rusprofile": 0.6,
     "kad": 0.7,
     "efrsb": 0.6,
+}
+
+SOURCE_URL_TEMPLATES = {
+    "fns": "https://egrul.nalog.ru/search?query={query}",
+    "kontur": "https://focus-api.kontur.ru/api3/search?query={query}",
+    "hh": "https://api.hh.ru/employers?text={query}",
+    "rusprofile": "https://www.rusprofile.ru/search?query={query}",
+    "zakupki": "https://zakupki.gov.ru/epz/contract/search/results.html?searchString={query}",
+    "kad": "https://kad.arbitr.ru/CardService.asmx",
+    "efrsb": "https://bankrot.fedresurs.ru/search?text={query}",
 }
 
 
@@ -124,22 +136,28 @@ def set_cached_lookup(query: str, payload: dict, ttl: int = 86400):
     set_cached(_cache_key(query), payload, ttl=ttl)
 
 
-async def _fns_with_retry(client: FnsClient, query: str) -> Tuple[list, Optional[str]]:
+async def _fns_with_retry(client: FnsClient, query: str) -> Tuple[list, Optional[dict]]:
     retries = 3
     for attempt in range(retries):
         rows, err = await client.search_with_status(query)
         if err is None:
             return rows, None
-        if err in ("timeout", "network", "bad_response", "http_error") and attempt < retries - 1:
+        if err.get("code") in ("timeout", "network", "bad_response", "http_error") and attempt < retries - 1:
             await asyncio.sleep(2 ** attempt)
             continue
         return [], err
-    return [], "timeout"
+    return [], {"code": "timeout", "detail": "max_retries_exceeded"}
 
 
-async def lookup_company(query: str) -> dict:
+async def lookup_company(
+    query: str,
+    session_id: int | None = None,
+    telegram_chat_id: str | None = None,
+    telegram_tag: str | None = None,
+) -> dict:
     cached = get_cached_lookup(query)
     if cached:
+        log_session_event(session_id, telegram_chat_id, telegram_tag, "lookup_cache", "Cache hit for lookup", {"query": query})
         return cached
 
     fns = FnsClient(settings.fns_base_url, settings.request_timeout)
@@ -164,18 +182,44 @@ async def lookup_company(query: str) -> dict:
 
     candidates: List[Candidate] = []
     fns_rows, fns_err = raw[0] if isinstance(raw[0], tuple) else ([], None)
+    if fns_err:
+        url = SOURCE_URL_TEMPLATES["fns"].format(query=query)
+        log_api_error("fns", f"lookup error: {fns_err.get('code')} {fns_err.get('detail','')} url={url} query={query}")
+        log_session_event(session_id, telegram_chat_id, telegram_tag, "lookup_fns_error", str(fns_err), {"url": url, "query": query})
     for row in fns_rows:
         candidates.append(_build_candidate(row, "fns", 1.0))
+    log_session_event(session_id, telegram_chat_id, telegram_tag, "lookup_fns", f"FNS results: {len(fns_rows)}", {"count": len(fns_rows)})
 
     sources = ["kontur", "hh", "rusprofile", "zakupki", "kad", "efrsb"]
     for idx, source in enumerate(sources, 1):
         rows = raw[idx]
         if isinstance(rows, Exception):
+            url = SOURCE_URL_TEMPLATES.get(source, "")
+            url = url.format(query=query) if "{query}" in url else url
+            log_api_error(source, f"lookup exception: {type(rows).__name__}: {rows} url={url} query={query}")
+            log_session_event(
+                session_id,
+                telegram_chat_id,
+                telegram_tag,
+                f"lookup_{source}_error",
+                f"{type(rows).__name__}: {rows}",
+                {"url": url, "query": query},
+            )
             continue
         for row in rows:
             candidates.append(_build_candidate(row, source, 0.7))
+        sample = rows[:2] if isinstance(rows, list) else []
+        log_session_event(
+            session_id,
+            telegram_chat_id,
+            telegram_tag,
+            f"lookup_{source}",
+            f"{source} results: {len(rows)}",
+            {"count": len(rows), "sample": sample},
+        )
 
     results = _aggregate(candidates)
+    log_session_event(session_id, telegram_chat_id, telegram_tag, "lookup_aggregate", f"Aggregated candidates: {len(results)}", {"count": len(results)})
 
     payload = {
         "query": query,

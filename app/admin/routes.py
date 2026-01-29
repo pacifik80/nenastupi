@@ -8,7 +8,7 @@ from sqlalchemy import func, text
 import redis
 from app.core.config import settings
 from app.db.postgres import SessionLocal
-from app.db.models import Company, TelegramSession, Check
+from app.db.models import Company, TelegramSession, Check, ApiLog, SessionLog
 from app.db.neo4j import get_driver
 
 router = APIRouter()
@@ -24,12 +24,29 @@ def _auth(credentials: HTTPBasicCredentials = Depends(security)):
 
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request, ok: bool = Depends(_auth)):
+def admin_dashboard(
+    request: Request,
+    tab: str = "status",
+    session_id: int | None = None,
+    telegram_tag: str | None = None,
+    ok: bool = Depends(_auth),
+):
     db = SessionLocal()
     try:
         company_count = db.query(func.count(Company.id)).scalar() or 0
         session_count = db.query(func.count(TelegramSession.id)).scalar() or 0
         last_checks = db.query(Check).order_by(Check.requested_at.desc()).limit(10).all()
+        last_logs = db.query(ApiLog).order_by(ApiLog.created_at.desc()).limit(20).all()
+        session_logs = []
+        sessions = []
+        if tab == "sessions":
+            sessions = db.query(Check).order_by(Check.requested_at.desc()).limit(50).all()
+            q = db.query(SessionLog)
+            if session_id:
+                q = q.filter(SessionLog.session_id == session_id)
+            if telegram_tag:
+                q = q.filter(SessionLog.telegram_tag.ilike(f"%{telegram_tag}%"))
+            session_logs = q.order_by(SessionLog.created_at.desc()).limit(200).all()
     finally:
         db.close()
 
@@ -47,7 +64,13 @@ def admin_dashboard(request: Request, ok: bool = Depends(_auth)):
             "company_count": company_count,
             "session_count": session_count,
             "last_checks": last_checks,
+            "last_logs": last_logs,
             "infra": infra,
+            "session_logs": session_logs,
+            "sessions": sessions,
+            "tab": tab,
+            "filter_session_id": session_id or "",
+            "filter_telegram_tag": telegram_tag or "",
         },
     )
 
