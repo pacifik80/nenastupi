@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, text
 import redis
 from app.core.config import settings
 from app.db.postgres import SessionLocal
@@ -67,7 +67,7 @@ def admin_restart(secret: str = Form(...), ok: bool = Depends(_auth)):
 def _check_postgres():
     db = SessionLocal()
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         return "ok"
     except Exception:
         return "fail"
