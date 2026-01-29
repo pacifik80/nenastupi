@@ -1,4 +1,8 @@
-$ErrorActionPreference='Stop'
+﻿﻿﻿﻿﻿$ErrorActionPreference='Stop'
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Resolve-Path (Join-Path $scriptDir '..')

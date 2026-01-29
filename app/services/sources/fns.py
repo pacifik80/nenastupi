@@ -48,10 +48,10 @@ class FnsClient:
 
     def _normalize(self, row: dict):
         return {
-            "ogrn": row.get("o") or row.get("ogrn") or row.get("????"),
-            "inn": row.get("i") or row.get("inn") or row.get("???"),
-            "name_full": row.get("n") or row.get("name") or row.get("????????"),
-            "name_short": row.get("c") or row.get("short") or row.get("????????"),
-            "status": row.get("s") or row.get("status") or row.get("??????"),
-            "reg_date": row.get("r") or row.get("reg_date") or row.get("???????"),
+            "ogrn": row.get("o") or row.get("ogrn") or row.get("ОГРН"),
+            "inn": row.get("i") or row.get("inn") or row.get("ИНН"),
+            "name_full": row.get("n") or row.get("name") or row.get("НаимПолн"),
+            "name_short": row.get("c") or row.get("short") or row.get("НаимСокр"),
+            "status": row.get("s") or row.get("status") or row.get("Статус"),
+            "reg_date": row.get("r") or row.get("reg_date") or row.get("ДатаРег"),
         }

@@ -22,7 +22,7 @@ class EfrsbClient:
 
         soup = BeautifulSoup(html, "lxml")
         text = soup.get_text(" ", strip=True).lower()
-        found = "???????" in text or "????????????" in text
+        found = "банкрот" in text or "несостоятель" in text
         entries = []
         if found:
             entries.append({"source": url, "note": "keyword_match"})

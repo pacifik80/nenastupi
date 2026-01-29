@@ -7,12 +7,10 @@ __pycache__/
 .idea/
 .vscode/
 *.log
-
 # Neo4j/Postgres/Redis volumes
 neo4j_data/
 postgres_data/
 redis_data/
-
 # Local-only scripts/secrets
 scripts/local_env.ps1
 scripts/local_env.cmd

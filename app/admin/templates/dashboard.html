@@ -15,10 +15,10 @@
 <body>
   <h1>Admin</h1>
 
-  <p>???????? ? ??: <strong>{{ company_count }}</strong></p>
-  <p>?????? Telegram: <strong>{{ session_count }}</strong></p>
+  <p>Компаний в БД: <strong>{{ company_count }}</strong></p>
+  <p>Сессий Telegram: <strong>{{ session_count }}</strong></p>
 
-  <h2>??????????????</h2>
+  <h2>Инфраструктура</h2>
   <ul>
     <li>PostgreSQL: <span class="{{ 'ok' if infra.postgres == 'ok' else 'fail' }}">{{ infra.postgres }}</span></li>
     <li>Redis: <span class="{{ 'ok' if infra.redis == 'ok' else 'fail' }}">{{ infra.redis }}</span></li>
@@ -26,15 +26,15 @@
     <li>Celery queue length: <strong>{{ infra.celery_queue }}</strong></li>
   </ul>
 
-  <h2>????????? ????????</h2>
+  <h2>Последние проверки</h2>
   <table>
     <thead>
       <tr>
-        <th>?????</th>
-        <th>??????</th>
-        <th>????</th>
-        <th>?????</th>
-        <th>?????</th>
+        <th>Время</th>
+        <th>Запрос</th>
+        <th>ОГРН</th>
+        <th>Канал</th>
+        <th>Успех</th>
       </tr>
     </thead>
     <tbody>
@@ -50,7 +50,7 @@
     </tbody>
   </table>
 
-  <h2>?????????? ???????</h2>
+  <h2>Перезапуск сервиса</h2>
   <form method="post" action="/admin/restart">
     <input type="password" name="secret" placeholder="RESTART_SECRET" />
     <button type="submit">Restart API</button>

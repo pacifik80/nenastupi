@@ -25,18 +25,17 @@ def _upsert_session(chat_id: str, username: str | None, last_query: str | None):
 async def handle_start(message: types.Message):
     await message.answer("Введите название компании, ИНН или ОГРН.")
 
-
 async def handle_query(message: types.Message):
     query = (message.text or "").strip()
     if not query:
-        await message.answer("??????? ???????? ????????, ??? ??? ????.")
+        await message.answer("Введите название компании, ИНН или ОГРН.")
         return
 
     result = await check_company(query)
     if result.get("ok"):
         await message.answer(result.get("report"))
     else:
-        await message.answer("???????? ?? ???????. ????????? ??????.")
+        await message.answer("Компания не найдена. Проверьте запрос.")
 
     _upsert_session(str(message.chat.id), message.from_user.username, query)
 
