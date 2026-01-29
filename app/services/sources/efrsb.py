@@ -27,3 +27,7 @@ class EfrsbClient:
         if found:
             entries.append({"source": url, "note": "keyword_match"})
         return {"found": found, "entries": entries}
+
+    async def search(self, query: str):
+        # EFRSB is not a primary registry for entity lookup; return empty results for now.
+        return []

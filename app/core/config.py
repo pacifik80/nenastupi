@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     fns_base_url: str = "https://egrul.nalog.ru"
     efrsb_base_url: str = "https://bankrot.fedresurs.ru"
 
+kontur_api_key: str = ""
+hh_user_agent: str = "api-test-agent"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
