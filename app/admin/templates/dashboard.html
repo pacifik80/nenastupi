@@ -126,6 +126,7 @@
           <th>Шаг</th>
           <th>Сообщение</th>
           <th>Payload</th>
+          <th>Response</th>
         </tr>
       </thead>
       <tbody>
@@ -137,6 +138,7 @@
           <td>{{ l.step }}</td>
           <td>{{ l.message }}</td>
           <td><pre style="white-space:pre-wrap; max-width:520px;">{{ l.payload }}</pre></td>
+          <td><pre style="white-space:pre-wrap; max-width:520px;">{{ l.response }}</pre></td>
         </tr>
         {% endfor %}
       </tbody>

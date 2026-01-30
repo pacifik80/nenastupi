@@ -1,6 +1,3 @@
-import httpx
-
-
 class KadClient:
     def __init__(self, timeout: int = 10):
         self.timeout = timeout

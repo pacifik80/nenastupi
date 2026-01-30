@@ -25,8 +25,13 @@ class Settings(BaseSettings):
     fns_base_url: str = "https://egrul.nalog.ru"
     efrsb_base_url: str = "https://bankrot.fedresurs.ru"
 
-kontur_api_key: str = ""
-hh_user_agent: str = "api-test-agent"
+    kontur_api_key: str = ""
+    hh_user_agent: str = "api-test-agent"
+    yandex_search_folder_id: str = ""
+    yandex_search_api_key: str = ""
+    deepseek_api_base: str = ""
+    deepseek_api_key: str = ""
+    deepseek_model: str = ""
 
     class Config:
         env_file = ".env"

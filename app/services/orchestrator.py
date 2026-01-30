@@ -28,10 +28,10 @@ async def check_company(query: str):
         return {"ok": False, "error": "company_not_found"}
 
     bankruptcy = await efrsb.check_bankruptcy(company.get("inn") or company.get("ogrn"))
-    news_items = await news.search_google_rss(company.get("name_short") or company.get("name_full"))
+    news_items, _ = await news.search_employer_news(company.get("name_short") or company.get("name_full"))
 
     risks = calculate_risks(company, bankruptcy, news_items)
-    report = build_report(company, risks, news_items)
+    report = build_report(company, risks, news_items, None)
 
     payload = {
         "ok": True,

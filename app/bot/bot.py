@@ -28,7 +28,7 @@ WELCOME_TEXT = """
 Что я умею:
 ✅ Проверить компанию по названию или ИНН/ОГРН
 ✅ Найти признаки банкротства
-✅ Собрать свежие новости о работодателе
+✅ Собрать релевантные новости о работодателе
 
 ⚠️ Важно: сервис использует открытые данные.
 Результат — ориентир, а не юридическая гарантия.
@@ -42,8 +42,7 @@ HOW_IT_WORKS_TEXT = (
 )
 
 DISCLAIMER_TEXT = (
-    "⚠️ Данные актуальны на дату запроса. "
-    "Сервис не даёт юридических гарантий."
+    "⚠️ Данные актуальны на дату запроса. Сервис не даёт юридических гарантий."
 )
 
 SOURCES_TEXT = "ℹ️ Источники: ФНС (ЕГРЮЛ), ЕФРСБ, Google News RSS"
@@ -144,8 +143,8 @@ class ProgressMessage:
         )
 
     def _build_progress_text(self, percent: int, status: str) -> str:
-        filled = "▰" * (percent // 10)
-        empty = "▱" * (10 - percent // 10)
+        filled = "█" * (percent // 10)
+        empty = "░" * (10 - percent // 10)
         return (
             f"🔍 Проверяю компанию «{self.company_name}»...\n\n"
             f"<code>{filled}{empty}</code> {percent}% — {status}"
@@ -161,16 +160,21 @@ def _build_final_keyboard():
 
 
 async def _resolve_candidates(query: str, session_id: int | None, telegram_chat_id: str | None, telegram_tag: str | None):
-    payload = await lookup_company(
+    return await lookup_company(
         query,
         session_id=session_id,
         telegram_chat_id=telegram_chat_id,
         telegram_tag=telegram_tag,
     )
-    return payload.get("candidates", []), payload.get("fns_error")
 
 
-async def _start_checking(message: types.Message, company: dict, query: str, session_id: int | None):
+async def _start_checking(
+    message: types.Message,
+    company: dict,
+    query: str,
+    session_id: int | None,
+    sources_status: dict | None = None,
+):
     progress = ProgressMessage(
         bot=message.bot,
         chat_id=message.chat.id,
@@ -180,25 +184,87 @@ async def _start_checking(message: types.Message, company: dict, query: str, ses
 
     try:
         await progress.update(20, "Запрос к ФНС...")
-        log_session_event(session_id, str(message.chat.id), message.from_user.username, "check_start", "Started checks", {"query": query})
+        log_session_event(
+            session_id,
+            str(message.chat.id),
+            message.from_user.username,
+            "check_start",
+            "Started checks",
+            {"query": query},
+            None,
+        )
+
+        source_summary = {"lookup": sources_status or {}}
 
         efrsb = EfrsbClient(settings.efrsb_base_url, settings.request_timeout)
         await progress.update(55, "Проверка ЕФРСБ...")
-        bankruptcy = await efrsb.check_bankruptcy(company.get("inn") or company.get("ogrn"))
-        log_session_event(session_id, str(message.chat.id), message.from_user.username, "check_efrsb", "EFRSB response", bankruptcy)
+        try:
+            bankruptcy = await efrsb.check_bankruptcy(company.get("inn") or company.get("ogrn"))
+            source_summary["efrsb"] = {"ok": True}
+            log_session_event(
+                session_id,
+                str(message.chat.id),
+                message.from_user.username,
+                "check_efrsb",
+                "EFRSB response",
+                {"inn_or_ogrn": company.get("inn") or company.get("ogrn")},
+                bankruptcy,
+            )
+        except Exception as e:
+            bankruptcy = {"found": False, "error": str(e)[:200]}
+            source_summary["efrsb"] = {"ok": False, "error": type(e).__name__}
+            log_session_event(
+                session_id,
+                str(message.chat.id),
+                message.from_user.username,
+                "check_efrsb_error",
+                str(e),
+                {"inn_or_ogrn": company.get("inn") or company.get("ogrn")},
+                {"error": type(e).__name__},
+            )
 
         news = NewsClient(settings.request_timeout)
         await progress.update(80, "Сбор новостей за 90 дней...")
-        news_items = await news.search_google_rss(company.get("name_short") or company.get("name_full"))
-        log_session_event(session_id, str(message.chat.id), message.from_user.username, "check_news", "News response", {"count": len(news_items)})
+        try:
+            news_items, news_meta = await news.search_employer_news(company.get("name_short") or company.get("name_full"))
+            source_summary["news"] = {"ok": True, "count": len(news_items), "meta": news_meta}
+            log_session_event(
+                session_id,
+                str(message.chat.id),
+                message.from_user.username,
+                "check_news",
+                "News response",
+                {"query": company.get("name_short") or company.get("name_full")},
+                {"count": len(news_items), "meta": news_meta},
+            )
+        except Exception as e:
+            news_items = []
+            source_summary["news"] = {"ok": False, "error": type(e).__name__}
+            log_session_event(
+                session_id,
+                str(message.chat.id),
+                message.from_user.username,
+                "check_news_error",
+                str(e),
+                {"query": company.get("name_short") or company.get("name_full")},
+                {"error": type(e).__name__},
+            )
 
         risks = calculate_risks(company, bankruptcy, news_items)
-        await progress.update(95, "Формирование отчёта...")
+        await progress.update(95, "Формирование отчета...")
 
-        report = build_report(company, risks, news_items)
+        report = build_report(company, risks, news_items, source_summary)
         final_text = "\n\n".join([report, SOURCES_TEXT, DISCLAIMER_TEXT])
         await progress.complete(final_text, reply_markup=_build_final_keyboard())
-        log_session_event(session_id, str(message.chat.id), message.from_user.username, "check_done", "Report sent", {"risk_count": len(risks)})
+        log_session_event(
+            session_id,
+            str(message.chat.id),
+            message.from_user.username,
+            "check_done",
+            "Report sent",
+            {"query": query},
+            {"risk_count": len(risks)},
+        )
         _mark_check(session_id, True)
 
         _upsert_session(str(message.chat.id), message.from_user.username, query)
@@ -209,7 +275,15 @@ async def _start_checking(message: types.Message, company: dict, query: str, ses
             "Попробуйте позже или проверьте другую компанию."
         )
         await progress.complete(error_text, reply_markup=_build_final_keyboard())
-        log_session_event(session_id, str(message.chat.id), message.from_user.username, "check_error", str(e), None)
+        log_session_event(
+            session_id,
+            str(message.chat.id),
+            message.from_user.username,
+            "check_error",
+            str(e),
+            {"query": query},
+            {"error": type(e).__name__},
+        )
         _mark_check(session_id, False)
 
 
@@ -226,32 +300,38 @@ async def handle_query(message: types.Message, state: FSMContext):
 
     telegram_tag = message.from_user.username
     session_id = _create_check(query, str(message.chat.id), telegram_tag)
-    log_session_event(session_id, str(message.chat.id), telegram_tag, "query_received", "User query received", {"query": query})
+    log_session_event(
+        session_id,
+        str(message.chat.id),
+        telegram_tag,
+        "query_received",
+        "User query received",
+        {"query": query},
+        None,
+    )
 
-    candidates, err = await _resolve_candidates(query, session_id, str(message.chat.id), telegram_tag)
-    err_code = err.get("code") if isinstance(err, dict) else err
-    if err_code == "blocked" and not candidates:
-        await message.answer("⚠️ ФНС временно недоступен. Попробуйте позже.")
+    payload = await _resolve_candidates(query, session_id, str(message.chat.id), telegram_tag)
+    status = payload.get("status")
+    if status == "clarify":
+        await message.answer(payload.get("clarify") or "Уточните запрос.")
         return
-    if err and not candidates:
-        await message.answer("⚠️ Временная ошибка при обращении к ФНС. Попробуйте позже.")
+    if status == "not_found":
+        await message.answer("❌ Не найдено компаний по запросу. Проверьте написание или попробуйте ИНН/ОГРН.")
+        return
+
+    candidates = payload.get("candidates") or []
+    if payload.get("candidate"):
+        await _start_checking(message, payload["candidate"], query, session_id, payload.get("sources_status") or {"lookup": {"ok": True, "details": {"source": payload.get("source")}}})
         return
 
     if not candidates and settings.allow_demo_fallback:
         demo = find_demo_company(query)
         if demo:
-            await _start_checking(message, demo, query, session_id)
+            await _start_checking(message, demo, query, session_id, payload.get("sources_status") or {"lookup": {"ok": True, "details": {"source": payload.get("source")}}})
             return
 
     if len(candidates) == 0:
         await message.answer("❌ Не найдено компаний по запросу. Проверьте написание или попробуйте ИНН/ОГРН.")
-        return
-
-    if len(candidates) == 1:
-        await _start_checking(message, candidates[0], query, session_id)
-        return
-    if candidates and candidates[0].get("confidence", 0) >= 0.85 and len(candidates[0].get("sources", [])) >= 2:
-        await _start_checking(message, candidates[0], query, session_id)
         return
 
     kb = InlineKeyboardBuilder()
@@ -265,7 +345,15 @@ async def handle_query(message: types.Message, state: FSMContext):
     kb.adjust(1)
 
     await message.answer("\n".join(text_lines), reply_markup=kb.as_markup())
-    log_session_event(session_id, str(message.chat.id), telegram_tag, "disambiguation", "Multiple candidates shown", {"count": len(candidates)})
+    log_session_event(
+        session_id,
+        str(message.chat.id),
+        telegram_tag,
+        "disambiguation",
+        "Multiple candidates shown",
+        {"query": query},
+        {"count": len(candidates)},
+    )
     await state.update_data(candidates=candidates, query=query)
     await state.update_data(session_id=session_id)
     await state.set_state(UserState.awaiting_selection)
@@ -296,6 +384,7 @@ async def handle_selection(callback: types.CallbackQuery, state: FSMContext):
         callback.from_user.username,
         "selection",
         "User selected candidate",
+        {"query": query},
         {"ogrn": company.get("ogrn"), "inn": company.get("inn")},
     )
     await _start_checking(callback.message, company, query, session_id)

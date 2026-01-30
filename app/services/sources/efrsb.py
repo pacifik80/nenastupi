@@ -17,8 +17,8 @@ class EfrsbClient:
                 resp = await client.get(url, params=params, headers={"User-Agent": "nenastupi/1.0"})
                 resp.raise_for_status()
                 html = resp.text
-        except Exception:
-            return {"found": False, "entries": [], "note": "fetch_failed"}
+        except Exception as e:
+            return {"found": False, "entries": [], "note": f"fetch_failed: {type(e).__name__}"}
 
         soup = BeautifulSoup(html, "lxml")
         text = soup.get_text(" ", strip=True).lower()

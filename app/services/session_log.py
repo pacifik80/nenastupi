@@ -9,6 +9,7 @@ def log_session_event(
     step: str,
     message: str,
     payload: dict | None = None,
+    response: dict | None = None,
 ) -> None:
     db = SessionLocal()
     try:
@@ -20,6 +21,7 @@ def log_session_event(
                 step=step,
                 message=message[:2000],
                 payload=payload,
+                response=response,
             )
         )
         db.commit()

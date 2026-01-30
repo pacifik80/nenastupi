@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 from bs4 import BeautifulSoup
+from app.services.logging import log_api_error
 
 
 class RusprofileClient:
@@ -11,11 +12,16 @@ class RusprofileClient:
         await asyncio.sleep(2)
         url = "https://www.rusprofile.ru/search"
         params = {"query": query}
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(url, params=params, headers={"User-Agent": "nenastupi/1.0"})
-            if resp.status_code != 200:
-                return []
-            html = resp.text
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(url, params=params, headers={"User-Agent": "nenastupi/1.0"})
+                if resp.status_code != 200:
+                    log_api_error("rusprofile", f"url={resp.url} status={resp.status_code}")
+                    return []
+                html = resp.text
+        except Exception as e:
+            log_api_error("rusprofile", f"url={url} error={type(e).__name__}: {e}")
+            return []
         soup = BeautifulSoup(html, "lxml")
         results = []
         for card in soup.select(".company-item")[:5]:

@@ -72,4 +72,5 @@ class SessionLog(Base):
     step = Column(String(100), nullable=False)
     message = Column(Text, nullable=False)
     payload = Column(JSONB, nullable=True)
+    response = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
